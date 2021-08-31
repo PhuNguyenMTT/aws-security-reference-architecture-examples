@@ -52,6 +52,7 @@ Parameters:
       The string can contain only the set of Unicode letters, digits, white-space, '_', '.', '/', '=', '+', '-''
     Description: Tag key
     Type: String
+    Default: Sumo
 
   pTagValue1:
     AllowedPattern: '^([\p{L}\p{Z}\p{N}_.:/=+\-@]*)$'
@@ -60,6 +61,7 @@ Parameters:
       The string can contain only the set of Unicode letters, digits, white-space, '_', '.', '/', '=', '+', '-'
     Description: Tag key value
     Type: String
+    Default: ASPIN2
 
 Resources:
   rOrgTrailBucket:

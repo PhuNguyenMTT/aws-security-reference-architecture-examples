@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Creates the Organization CloudTrail master template
+Parameters:
+  securityProdOU:
+    Type: String
+    Default: ou-v94q-vz1b2c20
+  toolingAccount:
+    Type: String
+    Default: 962689552168
+  toolingRegion:
+    Type: String
+    Default: us-east-2
+  loggingAccount:
+    Type: String
+    Default: 550976916382
+  loggingRegion:
+    Type: String
+    Default: us-east-2
+  managementAccountRegion:
+    Type: String
+    Default: us-east-1
+Resources:
+  #Role for management account
+  AdministrationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AWSCloudFormationStackSetAdministrationRole-demo
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: AssumeRole-AWSCloudFormationStackSetExecutionRole-demo
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - "arn:*:iam::*:role/AWSCloudFormationStackSetExecutionRole-demo"
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AWSCloudFormationStackSetExecutionRole-demo
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Ref "AWS::AccountId"
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess
+  ####
+
+  #Use Stackset with sevice managed permissions model to deploy trust access on all member accounts
+  StacksetTrustAllAcount:
+    Type: AWS::CloudFormation::StackSet
+    Properties: 
+      AutoDeployment: 
+        Enabled: true
+        RetainStacksOnAccountRemoval: true
+      Parameters: 
+        - ParameterKey: ManagementAccountID
+          ParameterValue: !Ref "AWS::AccountId" 
+      PermissionModel: SERVICE_MANAGED
+      Capabilities:
+        - 'CAPABILITY_NAMED_IAM'
+        - 'CAPABILITY_IAM'
+        - 'CAPABILITY_AUTO_EXPAND'
+      StackInstancesGroup:
+        - Regions:
+            - !Ref toolingRegion
+          DeploymentTargets:
+              OrganizationalUnitIds: 
+                - !Ref securityProdOU
+      StackSetName: AWS-Trust-all-acount-demo
+      TemplateURL: https://demo-aspin-2.s3.us-east-2.amazonaws.com/trust-all.template.yaml
+  ######
+ 
+  #Section for lambda function get ARN
+  RoleLambdaHelper:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: LogToCloudWatch
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+        - PolicyName: AssumeRole-Lambda
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - "arn:*:iam::*:role/AWSCloudFormationStackSetExecutionRole-demo"
+  LambdaFunctionGetARN:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: main.handler
+      Runtime: python3.7
+      CodeUri:
+        Bucket: demo-aspin-2
+        Key: sumo_app_utils.zip
+      MemorySize: 128
+      Timeout: 900
+      Role:
+        Fn::GetAtt:
+          - RoleLambdaHelper
+          - Arn
+  #########
+  #Stackset for KMS
+  KMSResoucesStackset:
+    Type: 'AWS::CloudFormation::StackSet'
+    DependsOn:
+      - "StacksetTrustAllAcount"
+    Properties:
+      AdministrationRoleARN: !GetAtt AdministrationRole.Arn
+      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole-demo
+      StackSetName: 'SumoCreateKMS'
+      PermissionModel: SELF_MANAGED
+      Capabilities:
+        - 'CAPABILITY_NAMED_IAM'
+        - 'CAPABILITY_IAM'
+        - 'CAPABILITY_AUTO_EXPAND'
+      StackInstancesGroup:
+        - Regions:
+            - !Ref toolingRegion
+          DeploymentTargets:
+            Accounts:
+              - !Ref toolingAccount    
+      TemplateURL: https://demo-aspin-2.s3.us-east-2.amazonaws.com/cloudtrail-org-kms.yaml
+      Parameters:
+        - ParameterKey: 'pLoggingAccountId'
+          ParameterValue: !Ref loggingAccount
+        - ParameterKey: pOrgPrimaryAccountId
+          ParameterValue: !Ref "AWS::AccountId" 
+        - ParameterKey: pOrganizationCloudTrailKeyAlias
+          ParameterValue: "Sumo-ASPIN-2"
+  ##Get ARN of KMS
+  KMSGetARN:
+    Type: Custom::AWSARN
+    DependsOn:
+      - "KMSResoucesStackset"
+    Properties:
+      ServiceToken: !GetAtt LambdaFunctionGetARN.Arn
+      accountID: !Ref toolingAccount
+      roleName: AWSCloudFormationStackSetExecutionRole-demo
+      region: !Ref toolingRegion
+      stackName: SumoCreateKMS
+      outputKey: oOrganizationCloudTrailKeyArn
+
+  #Stackset for S3 Bucket
+  S3ResoucesStackset:
+    Type: 'AWS::CloudFormation::StackSet'
+    Properties:
+      AdministrationRoleARN: !GetAtt AdministrationRole.Arn
+      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole-demo
+      StackSetName: 'SumoCreateS3Bucket'
+      PermissionModel: SELF_MANAGED
+      Capabilities:
+        - 'CAPABILITY_NAMED_IAM'
+        - 'CAPABILITY_IAM'
+        - 'CAPABILITY_AUTO_EXPAND'
+      StackInstancesGroup:
+        - Regions:
+            - !Ref loggingRegion
+          DeploymentTargets:
+            Accounts:
+              - !Ref loggingAccount    
+      TemplateURL: https://demo-aspin-2.s3.us-east-2.amazonaws.com/cloudtrail-org-bucket.yaml
+      Parameters:
+        - ParameterKey: 'pOrganizationCloudTrailKMSKey'
+          ParameterValue: !GetAtt KMSGetARN.ARN
+  
+  #Get ARN of S3 bucket
+  S3BucketGetARN:
+    Type: Custom::AWSARN
+    DependsOn:
+      - "S3ResoucesStackset"
+    Properties:
+      ServiceToken: !GetAtt LambdaFunctionGetARN.Arn
+      accountID: !Ref loggingAccount
+      roleName: AWSCloudFormationStackSetExecutionRole-demo
+      region: !Ref loggingRegion
+      stackName: SumoCreateS3Bucket
+      outputKey: oOrganizationCloudTrailS3
+
+  #Stackset for cloudtrail org
+  CloudtrailResoucesStackset:
+    Type: 'AWS::CloudFormation::StackSet'
+    Properties:
+      AdministrationRoleARN: !GetAtt AdministrationRole.Arn
+      ExecutionRoleName: AWSCloudFormationStackSetExecutionRole-demo
+      StackSetName: 'SumoCreateCloudtrailOrg'
+      PermissionModel: SELF_MANAGED
+      Capabilities:
+        - 'CAPABILITY_NAMED_IAM'
+        - 'CAPABILITY_IAM'
+        - 'CAPABILITY_AUTO_EXPAND'
+      StackInstancesGroup:
+        - Regions:
+            - !Ref managementAccountRegion
+          DeploymentTargets:
+            Accounts:
+              - !Ref "AWS::AccountId"   
+      TemplateURL: https://demo-aspin-2.s3.us-east-2.amazonaws.com/cloudtrail-org.yaml
+      Parameters:
+        - ParameterKey: 'pCloudTrailS3BucketName'
+          ParameterValue: !GetAtt S3BucketGetARN.ARN
+        - ParameterKey: 'pLambdaS3BucketName'
+          ParameterValue: demo-aspin-2-us1
+        - ParameterKey: pLambdaZipFileName
+          ParameterValue: sumo_app_utils.zip
+        - ParameterKey: pOrganizationCloudTrailKMSKey
+          ParameterValue: !GetAtt KMSGetARN.ARN
+
+
+
+
+
+
+
+        
+
+  

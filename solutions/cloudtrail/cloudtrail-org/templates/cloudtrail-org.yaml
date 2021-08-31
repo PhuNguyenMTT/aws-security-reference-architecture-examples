@@ -139,6 +139,7 @@ Parameters:
     ConstraintDescription: Max 64 alphanumeric characters. Also special characters supported [_, -]
     Description: Lambda function name
     Type: String
+    Default: LambdaASPIN2
 
   pLambdaExecutionRoleName:
     AllowedPattern: '^[\w+=,.@-]{1,64}$'
@@ -173,6 +174,7 @@ Parameters:
   pResourceNamePrefix:
     Description: Resource name prefix used to identify resources created by the automation framework
     Type: String
+    Default: aspin
 
   pTagKey1:
     AllowedPattern: '^([\p{L}\p{Z}\p{N}_.:/=+\-@]*)$'
@@ -181,6 +183,7 @@ Parameters:
       The string can contain only the set of Unicode letters, digits, white-space, '_', '.', '/', '=', '+', '-''
     Description: Tag key
     Type: String
+    Default: sumo
 
   pTagValue1:
     AllowedPattern: '^([\p{L}\p{Z}\p{N}_.:/=+\-@]*)$'
@@ -189,6 +192,7 @@ Parameters:
       The string can contain only the set of Unicode letters, digits, white-space, '_', '.', '/', '=', '+', '-'
     Description: Tag key value
     Type: String
+    Default: aspin
 
 
 Conditions:
