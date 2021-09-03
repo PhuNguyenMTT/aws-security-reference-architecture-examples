@@ -17,9 +17,9 @@ Parameters:
   loggingRegion:
     Type: String
     Default: us-east-2
-  managementAccountRegion:
-    Type: String
-    Default: us-east-1
+  managementAccountCloudTrailRegions:
+    Type: CommaDelimitedList
+    Default: us-east-1,us-east-2
 Resources:
   #Role for management account
   AdministrationRole:
@@ -218,15 +218,14 @@ Resources:
     Properties:
       AdministrationRoleARN: !GetAtt AdministrationRole.Arn
       ExecutionRoleName: AWSCloudFormationStackSetExecutionRole-demo
-      StackSetName: 'SumoCreateCloudtrailOrg'
+      StackSetName: 'SumoCreateCloudtrailOrg' #Don't change name of this stackset. Because will use macro to support multi regions from user's inputs.
       PermissionModel: SELF_MANAGED
       Capabilities:
         - 'CAPABILITY_NAMED_IAM'
         - 'CAPABILITY_IAM'
         - 'CAPABILITY_AUTO_EXPAND'
       StackInstancesGroup:
-        - Regions:
-            - !Ref managementAccountRegion
+        - Regions: !Ref managementAccountCloudTrailRegions 
           DeploymentTargets:
             Accounts:
               - !Ref "AWS::AccountId"   
@@ -235,7 +234,7 @@ Resources:
         - ParameterKey: 'pCloudTrailS3BucketName'
           ParameterValue: !GetAtt S3BucketGetARN.ARN
         - ParameterKey: 'pLambdaS3BucketName'
-          ParameterValue: demo-aspin-2-us1
+          ParameterValue: demo-aspin-lambda-app-file
         - ParameterKey: pLambdaZipFileName
           ParameterValue: sumo_app_utils.zip
         - ParameterKey: pOrganizationCloudTrailKMSKey

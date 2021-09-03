@@ -248,7 +248,7 @@ Resources:
     Condition: cCreateCloudWatchLogGroup
     Properties:
       RetentionInDays: !Ref pDefaultLogGroupRetention
-      LogGroupName: !Sub "CloudTrail/${pCloudTrailName}"
+      LogGroupName: !Sub "CloudTrail/${pCloudTrailName}-${AWS::Region}"
 
   rLambdaLogGroup:
     Type: AWS::Logs::LogGroup
@@ -398,7 +398,7 @@ Resources:
     Properties:
       ServiceToken: !GetAtt rLambdaFunction.Arn
       AWS_PARTITION: !Sub ${AWS::Partition}
-      CLOUDTRAIL_NAME: !Ref pCloudTrailName
+      CLOUDTRAIL_NAME: !Sub "${pCloudTrailName}-${AWS::Region}"
       CLOUDWATCH_LOG_GROUP_ARN: !If [cCreateCloudWatchLogGroup, !GetAtt rCloudTrailLogGroup.Arn, '']
       CLOUDWATCH_LOG_GROUP_ROLE_ARN: !If [cCreateCloudWatchLogGroup, !GetAtt rCloudTrailLogGroupRole.Arn, '']
       ENABLE_DATA_EVENTS_ONLY: !Ref pEnableDataEventsOnly
