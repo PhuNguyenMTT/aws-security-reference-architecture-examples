@@ -212,7 +212,7 @@ Resources:
           - id: W28
             reason: The role name is defined to identify automation resources
     Properties:
-      RoleName: !Sub ${pResourceNamePrefix}-cloudtrail-cloudwatch-logs
+      RoleName: !Sub ${pResourceNamePrefix}-cloudtrail-cloudwatch-logs-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -272,7 +272,7 @@ Resources:
           - id: W28
             reason: The role name is provided
     Properties:
-      RoleName: !Ref pLambdaExecutionRoleName
+      RoleName: !Sub ${pLambdaExecutionRoleName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -389,7 +389,7 @@ Resources:
         Variables:
           LOG_LEVEL: !Ref pLogLevel
       Code:
-        S3Bucket: !Ref pLambdaS3BucketName
+        S3Bucket: !Sub "${pLambdaS3BucketName}-${AWS::Region}"
         S3Key: !Ref pLambdaZipFileName
 
   rLambdaCustomResource:
