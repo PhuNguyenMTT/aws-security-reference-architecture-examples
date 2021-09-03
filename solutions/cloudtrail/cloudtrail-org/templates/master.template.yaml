@@ -215,6 +215,8 @@ Resources:
   #Stackset for cloudtrail org
   CloudtrailResoucesStackset:
     Type: 'AWS::CloudFormation::StackSet'
+    DependsOn:
+      - "ExecutionRole"
     Properties:
       AdministrationRoleARN: !GetAtt AdministrationRole.Arn
       ExecutionRoleName: AWSCloudFormationStackSetExecutionRole-demo
